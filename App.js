@@ -68,15 +68,38 @@ export default class App extends Component {
     });
     cognitoInitiater
       .then(() => {
-        const AWSCredentials = AWS.Credentials();
+        if (AWS.config.credentials.expired) {
+          this.fetchAwsCredentials()
+            .then(response => {
+              let appState = null;
 
-        console.log(AWSCredentials);
+              this.setState(state => {
+                const clonedState = cloneDeep(state);
+                clonedState.cognitoCredentials = response.data;
+                appState = clonedState;
+                return clonedState;
+              });
 
-        // this.setState(state => {
-        //   const clonedState = cloneDeep(state);
-        //   clonedState.coginated = true;
-        //   return clonedState;
-        // });
+              this.saveAWSCredentialsToStorage(appState.cognitoCredentials);
+              this.initiateAWS(appState.cognitoCredentials);
+              this.setState(state => {
+                const clonedState = cloneDeep(state);
+                clonedState.coginated = true;
+                return clonedState;
+              });
+            })
+            .catch(error => {
+              console.log(" Axios Error :  ", error);
+
+              this.triggerErrorAlert(error);
+            });
+        } else {
+          this.setState(state => {
+            const clonedState = cloneDeep(state);
+            clonedState.coginated = true;
+            return clonedState;
+          });
+        }
       })
       .catch(error => this.triggerErrorAlert(error));
   }

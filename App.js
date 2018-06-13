@@ -1,13 +1,12 @@
 import React, { Component } from "react";
 import { Platform, StyleSheet, Text, View, AsyncStorage } from "react-native";
 import axios from "axios";
+import cloneDeep from "lodash/cloneDeep";
 import AWS from "aws-sdk";
 
 const instructions = Platform.select({
-  ios: "Press Cmd+R to reload,\n" + "Cmd+D or shake for dev menu",
-  android:
-    "Double tap R on your keyboard to reload,\n" +
-    "Shake or press menu button for dev menu"
+  ios: "Press Cmd+R to reload,\n Cmd+D or shake for dev menu",
+  android: "Double tap R on your keyboard to reload,\n Shake or press menu button for dev menu"
 });
 
 const styles = StyleSheet.create({
@@ -47,13 +46,10 @@ export default class App extends Component {
   fetchAwsCrdentials = () => {
     this.console.log("fetching of AWS credentials initated");
     axios
-      .post(
-        "https://47hith9kh1.execute-api.us-east-1.amazonaws.com/prod/get-cognito",
-        {
-          developerProviderName: "cognito",
-          userId: "48"
-        }
-      )
+      .post("https://47hith9kh1.execute-api.us-east-1.amazonaws.com/prod/get-cognito", {
+        developerProviderName: "cognito",
+        userId: "48"
+      })
       .then(response => {
         this.console.log("Cognito Result : ", response);
 
@@ -66,7 +62,28 @@ export default class App extends Component {
           return clonedState;
         });
 
-        this.saveAwsCredentialsToASync(stateVar.cognitoCredentials);
+        AWS.config.update({
+          credentials: new AWS.CognitoIdentityCredentials({
+            IdentityPoolId: "IDENTITY_POOL_ID",
+            IdentityId: "IDENTITY_ID_RETURNED_FROM_YOUR_PROVIDER",
+            Logins: {
+              "cognito-identity.amazonaws.com": "TOKEN_RETURNED_FROM_YOUR_PROVIDER"
+            }
+          }),
+          region: "us-east-1"
+        });
+
+        const AWS_S3 = new AWS.S3();
+
+        AWS_S3.listBuckets((error, data) => {
+          if (error) {
+            console.log("Error occured : ", error);
+          } else {
+            console.log("Buckets data : ", data);
+          }
+        });
+
+        //this.saveAwsCredentialsToASync(stateVar.cognitoCredentials);
       })
       .catch(error => {
         this.console.log("Cognito Error : ", error);
@@ -88,10 +105,11 @@ export default class App extends Component {
   storageGetItem = async key_ =>
     new Promise(async (resolve, reject) => {
       try {
-        await AsyncStorage.getItem(`@MySuperStore:${key_}`, (error, resolt) => {
+        await AsyncStorage.getItem(`@MySuperStore:${key_}`, (error, result) => {
           if (error) {
             throw error;
           } else {
+            resolve(result);
           }
         });
       } catch (error) {

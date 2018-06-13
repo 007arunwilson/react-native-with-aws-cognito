@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Platform, StyleSheet, Text, View, AsyncStorage } from "react-native";
+import { Platform, StyleSheet, Text, View, AsyncStorage, Alert } from "react-native";
 import axios from "axios";
 import cloneDeep from "lodash/cloneDeep";
 import AWS from "aws-sdk";
@@ -31,91 +31,138 @@ const styles = StyleSheet.create({
 export default class App extends Component {
   constructor(props) {
     super(props);
-    this.fetchAwsCrdentials = null;
-    let Console: {
-      new(): Console,
-      prototype: Console
+    this.state = {
+      coginated: false,
+      cognitoCredentials: {}
     };
-    this.console = Console;
   }
 
   componentDidMount() {
-    this.fetchAwsCrdentials();
+    //this.fetchAwsCredentials();
+    //this.storageGetItem("aws_credetnails", "1").then(result => console.log("Result : ", result));
+
+    // AsyncStorage.getItem("@AppAWSCredential:").then((result, error) => {
+    //   console.log("Result : ", result);
+    //   console.log("Error : ", error);
+    // });
+
+    this.getAWSCredentialsFromStorage()
+      .then(result => {
+        this.initiateAWS(result);
+        this.doAwsProcess();
+      })
+      .catch(() => {
+        this.fetchAwsCredentials()
+          .then(response => {
+            console.log("Cognito Result : ", response);
+
+            let appState = null;
+
+            this.setState(state => {
+              const clonedState = cloneDeep(state);
+              clonedState.coginated = true;
+              clonedState.cognitoCredentials = response.data;
+              appState = clonedState;
+              return clonedState;
+            });
+
+            this.saveAWSCredentialsToStorage(appState.cognitoCredentials);
+            this.initiateAWS(appState.cognitoCredentials);
+            this.doAwsProcess();
+          })
+          .catch(error => {
+            console.log("Cognito Aciox Error : ", error);
+            this.triggerErrorAlert(error);
+          });
+      });
+
+    // AsyncStorage.setItem("@MySuperStore:numbers", "8086699702").then((result, error) => {
+    //   console.log("Result : ", result);
+    //   console.log("Error : ", error);
+    // });
+
+    // this.storageGetItem("aws_credetnails").then(result => {
+    //   console.log("result : ", result);
+    // });
   }
 
-  fetchAwsCrdentials = () => {
-    this.console.log("fetching of AWS credentials initated");
-    axios
-      .post("https://47hith9kh1.execute-api.us-east-1.amazonaws.com/prod/get-cognito", {
-        developerProviderName: "cognito",
-        userId: "48"
-      })
-      .then(response => {
-        this.console.log("Cognito Result : ", response);
+  getAWSCredentialsFromStorage = () => {
+    const awsCredentialsObject = {};
 
-        const stateVar = null;
-
-        this.setState(state => {
-          const clonedState = cloneDeep(state);
-          clonedState.coginated = true;
-          clonedState.cognitoCredentials = response.data;
-          return clonedState;
-        });
-
-        AWS.config.update({
-          credentials: new AWS.CognitoIdentityCredentials({
-            IdentityPoolId: "IDENTITY_POOL_ID",
-            IdentityId: "IDENTITY_ID_RETURNED_FROM_YOUR_PROVIDER",
-            Logins: {
-              "cognito-identity.amazonaws.com": "TOKEN_RETURNED_FROM_YOUR_PROVIDER"
-            }
-          }),
-          region: "us-east-1"
-        });
-
-        const AWS_S3 = new AWS.S3();
-
-        AWS_S3.listBuckets((error, data) => {
-          if (error) {
-            console.log("Error occured : ", error);
-          } else {
-            console.log("Buckets data : ", data);
-          }
-        });
-
-        //this.saveAwsCredentialsToASync(stateVar.cognitoCredentials);
-      })
-      .catch(error => {
-        this.console.log("Cognito Error : ", error);
-      });
+    return new Promise((resolve, reject) => {
+      AsyncStorage.getItem("@MySuperStore:identityPoolId")
+        .then(identityPoolId => {
+          awsCredentialsObject.identityPoolId = identityPoolId;
+          AsyncStorage.getItem("@MySuperStore:identityId")
+            .then(identityId => {
+              awsCredentialsObject.identityPoolId = identityId;
+              AsyncStorage.getItem("@MySuperStore:tokenId")
+                .then(tokenId => {
+                  awsCredentialsObject.identityPoolId = tokenId;
+                  resolve(awsCredentialsObject);
+                })
+                .catch(error => reject(error));
+            })
+            .catch(error => reject(error));
+        })
+        .catch(error => reject(error));
+    });
   };
 
-  storageSetItem = async (key_, value_) =>
-    new Promise(async (resolve, reject) => {
-      try {
-        await AsyncStorage.setItem(`@MySuperStore:${key_}`, value_, () => {
-          resolve(value_);
-        });
-      } catch (error) {
-        this.console.log("storageSetItem save error : ", error);
-        reject(error);
-      }
+  saveAWSCredentialsToStorage = cognitoCredentials => {
+    const cognitoCredentialsKey = Object.keys(cognitoCredentials);
+    cognitoCredentialsKey.forEach(ele => {
+      AsyncStorage.setItem(`@MySuperStore:${ele}`, cognitoCredentials[cognitoCredentials]);
     });
+  };
 
-  storageGetItem = async key_ =>
-    new Promise(async (resolve, reject) => {
-      try {
-        await AsyncStorage.getItem(`@MySuperStore:${key_}`, (error, result) => {
-          if (error) {
-            throw error;
-          } else {
-            resolve(result);
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
+  fetchAwsCredentials = () => {
+    return axios.post("https://47hith9kh1.execute-api.us-east-1.amazonaws.com/prod/get-cognito", {
+      developerProviderName: "cognito",
+      userId: "48"
     });
+  };
+
+  initiateAWS = cognitoCredentials => {
+    AWS.config.update({
+      credentials: new AWS.CognitoIdentityCredentials({
+        IdentityPoolId: cognitoCredentials.identityPoolId,
+        IdentityId: cognitoCredentials.identityId,
+        Logins: {
+          "cognito-identity.amazonaws.com": cognitoCredentials.tokenId
+        }
+      }),
+      region: "us-east-1"
+    });
+  };
+
+  doAwsProcess = () => {
+    console.log("do AWS Process trigered ..");
+
+    // const AWS_S3 = new AWS.S3();
+
+    // AWS_S3.getBucketCors(
+    //   {
+    //     Bucket: "cyberinfoscripter"
+    //   },
+    //   (error, data) => {
+    //     if (error) {
+    //       console.log("Error occured : ", error);
+    //     } else {
+    //       console.log("Buckets data : ", data);
+    //     }
+    //   }
+    // );
+  };
+
+  triggerErrorAlert = error => {
+    Alert.alert(
+      "Oops! Some thing went wrong",
+      `Error detail : ${error.message ? error.message : "Not Available"}`,
+      [{ text: "Cancel", onPress: () => console.log("Cancel Pressed"), style: "cancel" }],
+      { cancelable: true }
+    );
+  };
 
   render() {
     return (

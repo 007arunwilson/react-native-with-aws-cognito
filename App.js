@@ -4,6 +4,7 @@ import axios from "axios";
 import cloneDeep from "lodash/cloneDeep";
 import AWS from "aws-sdk";
 import Config from "react-native-config";
+import { DocumentPicker, DocumentPickerUtil } from "react-native-document-picker";
 
 const instructions = Platform.select({
   ios: "The best IOT netwoking application in IOS",
@@ -187,6 +188,23 @@ export default class App extends Component {
     );
   };
 
+  documentPickerHandler = () => {
+    DocumentPicker.show(
+      {
+        filetype: [DocumentPickerUtil.allFiles()]
+      },
+      (error, res) => {
+        // Android
+        console.log(
+          res.uri,
+          res.type, // mime type
+          res.fileName,
+          res.fileSize
+        );
+      }
+    );
+  };
+
   triggerErrorAlert = error => {
     Alert.alert(
       "Oops! Some thing went wrong",
@@ -206,6 +224,9 @@ export default class App extends Component {
           onPress={this.doAwsProcess}
           title={this.state.coginated ? "Do AWS task" : "Cognitating..."}
         />
+        {this.state.coginated ? (
+          <Button onPress={this.documentPickerHandler} title="Choose Files to Upload" />
+        ) : null}
       </View>
     );
   }

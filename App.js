@@ -3,6 +3,7 @@ import { Platform, StyleSheet, Text, View, AsyncStorage, Alert, Button } from "r
 import axios from "axios";
 import cloneDeep from "lodash/cloneDeep";
 import AWS from "aws-sdk";
+import Config from "react-native-config";
 
 const instructions = Platform.select({
   ios: "The best IOT netwoking application in IOS",
@@ -123,9 +124,9 @@ export default class App extends Component {
   };
 
   fetchAwsCredentials = () => {
-    return axios.post("https://47hith9kh1.execute-api.us-east-1.amazonaws.com/prod/get-cognito", {
-      developerProviderName: "cognito",
-      userId: "48"
+    return axios.post(Config.AWS_COGNITO_CREDENTIALS_REQUEST_URL, {
+      developerProviderName: Config.AWS_COGNITO_CREDENTIALS_PROVIDER_NAME,
+      userId: Config.AWS_COGNITO_CREDENTIALS_USER_ID
     });
   };
 
